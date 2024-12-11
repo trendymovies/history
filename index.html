@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order History</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .order {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            padding: 15px;
+            margin: 10px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .status-pending {
+            color: orange;
+        }
+        .status-rejected {
+            color: red;
+        }
+        .status-success {
+            color: green;
+        }
+        .premium-code {
+            border: 2px dashed #007bff;
+            padding: 10px;
+            margin: 20px 0;
+            text-align: center;
+            background-color: #e9f5ff;
+            border-radius: 5px;
+        }
+        .searched-orders {
+            margin-top: 30px;
+        }
+        .searched-order {
+            border: 1px solid #007bff;
+            background-color: #f0f8ff;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Order History</h1>
+    </header>
+    <label for="orderId">Enter Order ID:</label>
+    <input type="text" id="orderId">
+    <button onclick="searchOrder()">Search</button>
+
+    <div id="orderDetails"></div>
+
+    <div class="searched-orders">
+        <h2>Previously Searched Orders</h2>
+        <div id="previousOrders"></div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCBPGSYNVaPPDu7RWee9ymckMaI1VQNjd4",
+            authDomain: "trendy-movie.firebaseapp.com",
+            databaseURL: "https://trendy-movie-default-rtdb.firebaseio.com",
+            projectId: "trendy-movie",
+            storageBucket: "trendy-movie.firebasestorage.app",
+            messagingSenderId: "699469684359",
+            appId: "1:699469684359:web:34cc2adfc8019b89a76222",
+            measurementId: "G-54SX69JVY3"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Function to search order by ID
+        function searchOrder() {
+            const orderId = document.getElementById('orderId').value;
+            if (!orderId) {
+                alert('Please enter an Order ID.');
+                return;
+            }
+
+            // Fetch order details from Firebase
+            database.ref('orders/' + orderId).once('value').then((snapshot) => {
+                const order = snapshot.val();
+                if (order) {
+                    displayOrder(order, orderId);
+                    saveToPreviousOrders(orderId, order);
+                } else {
+                    document.getElementById('orderDetails').innerHTML = '<p>Order not found.</p>';
+                }
+            });
+        }
+
+        // Function to display order details
+        function displayOrder(order, orderId) {
+            let statusClass = '';
+            switch (order.orderStatus) {
+                case 'pending':
+                    statusClass = 'status-pending';
+                    break;
+                case 'rejected':
+                    statusClass = 'status-rejected';
+                    break;
+                case 'success':
+                    statusClass = 'status-success';
+                    break;
+            }
+
+            let orderHtml = `
+                <div class="order">
+                    <p><strong>Order ID:</strong> ${orderId}</p>
+                    <p><strong>Name:</strong> ${order.name}</p>
+                    <p><strong>Email:</strong> ${order.email}</p>
+                    <p><strong>Package:</strong> ${order.package}</p>
+                    <p><strong>Payment Method:</strong> ${order.paymentMethod}</p>
+                    <p><strong>Status:</strong> <span class="${statusClass}">${order.orderStatus}</span></p>
+                </div>
+            `;
+
+            if (order.premiumCode) {
+                orderHtml += `
+                    <div class="premium-code">
+                        <strong>Premium Code:</strong> ${order.premiumCode}
+                    </div>
+                `;
+            }
+
+            document.getElementById('orderDetails').innerHTML = orderHtml;
+        }
+
+        // Save searched order to previously searched list
+        function saveToPreviousOrders(orderId, order) {
+            let previousOrders = JSON.parse(localStorage.getItem('previousOrders')) || [];
+
+            const orderData = { orderId, ...order };
+
+            const existingIndex = previousOrders.findIndex(o => o.orderId === orderId);
+            if (existingIndex > -1) {
+                previousOrders[existingIndex] = orderData; // Update existing order
+            } else {
+                previousOrders.push(orderData);
+            }
+
+            localStorage.setItem('previousOrders', JSON.stringify(previousOrders));
+            displayPreviousOrders();
+        }
+
+        // Display previously searched orders with full details
+        function displayPreviousOrders() {
+            const previousOrders = JSON.parse(localStorage.getItem('previousOrders')) || [];
+            const previousOrdersDiv = document.getElementById('previousOrders');
+            previousOrdersDiv.innerHTML = previousOrders.map(order => {
+                let statusClass = '';
+                switch (order.orderStatus) {
+                    case 'pending':
+                        statusClass = 'status-pending';
+                        break;
+                    case 'rejected':
+                        statusClass = 'status-rejected';
+                        break;
+                    case 'success':
+                        statusClass = 'status-success';
+                        break;
+                }
+
+                return `
+                    <div class="searched-order">
+                        <p><strong>Order ID:</strong> ${order.orderId}</p>
+                        <p><strong>Name:</strong> ${order.name}</p>
+                        <p><strong>Email:</strong> ${order.email}</p>
+                        <p><strong>Package:</strong> ${order.package}</p>
+                        <p><strong>Payment Method:</strong> ${order.paymentMethod}</p>
+                        <p><strong>Status:</strong> <span class="${statusClass}">${order.orderStatus}</span></p>
+                        ${order.premiumCode ? `<div class="premium-code"><strong>Premium Code:</strong> ${order.premiumCode}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load previously searched orders on page load
+        window.onload = displayPreviousOrders;
+    </script>
+</body>
+</html>
